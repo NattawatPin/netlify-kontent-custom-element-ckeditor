@@ -22,5 +22,4 @@ CKEDITOR.editorConfig = function (config) {
 	config.emailProtection = '';
 	config.linkShowAdvancedTab = false;
 	config.linkShowTargetTab = false;
-	config.disallowedContent = 'script; *[on*]; a[onclick]; a[href^="javascript:"]';
 };
