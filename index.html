@@ -7,9 +7,7 @@
   <!-- Kontent Styling -->
   <link rel="stylesheet" href="custom-element.css" />
   <!-- Kentico Custom elements API-->
-  <script src="https://app.kontent.ai/js-api/custom-element/v1/custom-element.min.js"
-    integrity="sha384-LX+8V82KBSrOhDdhpQ77LtmnBtrCBHw5/UlnSePcgTc4MGfKEhRUNMXmQPed0hLa"
-    crossorigin="anonymous"></script>
+  <script src="https://app.kontent.ai/js-api/custom-element/v1/custom-element.min.js"></script>
   <script src="https://cdn.ckeditor.com/4.25.1-lts/full-all/ckeditor.js"
     integrity="sha384-KDRKFSo6pLSg/R8LoA/YF1Nx1W7LrSLRMcWzpoZhprlUvjT3Hy8L7cWqoYCSJ1Gt"
     crossorigin="anonymous"></script>
@@ -73,7 +71,7 @@
         });
 
         // load data and view them in the editor
-        ckeditor.setData(element.value);
+        ckeditor.setData(stripUnsafeContent(element.value));
 
         // resizes editor to initial height
         updateElementHeight();
@@ -92,10 +90,40 @@
 
     /* Saves custom element value */
     function save(ckeditor) {
-      let data = ckeditor.getData();
+      let data = stripUnsafeContent(ckeditor.getData());
       // if the editor contains invisible tags save empty (so required flag is not triggered)
       if (data.replace(/<[^>]*(>|$)|&nbsp;|&zwnj;|&raquo;|&laquo;|&gt;|\s/g, '') == "") data = null;
       CustomElement.setValue(data);
+    }
+
+    function stripUnsafeContent(html) {
+      if (!html) return "";
+
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = html;
+
+      wrapper.querySelectorAll("script").forEach(el => el.remove());
+
+      wrapper.querySelectorAll("*").forEach(el => {
+        Array.from(el.attributes).forEach(attr => {
+          const attrName = attr.name.toLowerCase();
+          const attrValue = (attr.value || "").trim();
+
+          if (attrName.startsWith("on")) {
+            el.removeAttribute(attr.name);
+            return;
+          }
+
+          if (
+            (attrName === "href" || attrName === "data-cke-saved-href") &&
+            /^javascript:/i.test(attrValue)
+          ) {
+            el.removeAttribute(attr.name);
+          }
+        });
+      });
+
+      return wrapper.innerHTML;
     }
 
     /* Displays asset selector and returns URL of the selected asset */
