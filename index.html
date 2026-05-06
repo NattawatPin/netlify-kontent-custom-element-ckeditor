@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="custom-element.css" />
   <!-- Kentico Custom elements API-->
   <script src="https://app.kontent.ai/js-api/custom-element/v1/custom-element.min.js"></script>
-  <script src="https://cdn.ckeditor.com/4.25.1-lts/full-all/ckeditor.js"></script>
+  <script src="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"></script>
 </head>
 
 <body>
@@ -18,6 +18,7 @@
     CKEDITOR.disableAutoInline = true;
     AUTOSAVE_INTERVAL = 15000;
     let item_url_macro = "domain.com/{codename}";
+    let isElementDisabled = false;
 
     CustomElement.init((element, context) => {
       CKEDITOR.plugins.addExternal(
@@ -65,6 +66,7 @@
 
         // setup readonly on disable
         CustomElement.onDisabledChanged(readonly => {
+          isElementDisabled = readonly;
           ckeditor.setReadOnly(readonly);
         });
 
@@ -88,6 +90,7 @@
 
     /* Saves custom element value */
     function save(ckeditor) {
+      if (isElementDisabled) return;
       let data = ckeditor.getData();
       // if the editor contains invisible tags save empty (so required flag is not triggered)
       if (data.replace(/<[^>]*(>|$)|&nbsp;|&zwnj;|&raquo;|&laquo;|&gt;|\s/g, '') == "") data = null;
