@@ -2422,3 +2422,10 @@ input:checked:disabled+.switch:before{
 input:checked~.switch__label{
   color:#2196f3;
 }
+
+/* CKEditor: show several lines when empty (ClassicEditor editable + Source mode) */
+#editor .ck-editor__editable,
+#editor .ck-source-editing-area textarea{
+  min-height:14rem;
+  box-sizing:border-box;
+}
