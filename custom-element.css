@@ -2426,6 +2426,6 @@ input:checked~.switch__label{
 /* CKEditor: show several lines when empty (ClassicEditor editable + Source mode) */
 #editor .ck-editor__editable,
 #editor .ck-source-editing-area textarea{
-  min-height:14rem;
+  min-height:18rem;
   box-sizing:border-box;
 }
