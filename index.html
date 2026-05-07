@@ -23,6 +23,9 @@
     /* Minimal plugin set aligned with typical CK commercial bundles (avoids license-key-plugin-not-allowed). */
     const {
       ClassicEditor,
+      Plugin,
+      ButtonView,
+      IconImageUpload,
       Essentials,
       Paragraph,
       Heading,
@@ -42,9 +45,43 @@
       Image,
       ImageToolbar,
       ImageCaption,
-      ImageStyle,
-      ImageUpload
+      ImageStyle
     } = CKEDITOR;
+
+    /**
+     * Opens Kontent asset library only — no OS file picker (ImageUpload plugin does that).
+     * Reuses toolbar item name "imageUpload" so Kontent JSON configs stay valid.
+     */
+    class KontentAssetImagePlugin extends Plugin {
+      static get pluginName() {
+        return "KontentAssetImage";
+      }
+
+      init() {
+        const editor = this.editor;
+        const insertImageCommand = editor.commands.get("insertImage");
+
+        editor.ui.componentFactory.add("imageUpload", locale => {
+          const buttonView = new ButtonView(locale);
+
+          buttonView.set({
+            label: "Insert image",
+            icon: IconImageUpload,
+            tooltip: true
+          });
+
+          if (insertImageCommand) {
+            buttonView.bind("isEnabled").to(insertImageCommand, "isEnabled");
+          }
+
+          buttonView.on("execute", () => {
+            void insertImageFromKontentAsset(editor);
+          });
+
+          return buttonView;
+        });
+      }
+    }
 
     const DEFAULT_TOOLBAR = [
       "undo", "redo", "|",
@@ -109,7 +146,7 @@
           ImageToolbar,
           ImageCaption,
           ImageStyle,
-          ImageUpload
+          KontentAssetImagePlugin
         ],
         toolbar: normalizeToolbar(element && element.config && element.config.toolbar),
         htmlSupport: {
@@ -154,8 +191,6 @@
             updateElementHeight();
           });
 
-          setupKontentAssetPicker(editor);
-
           editor.editing.view.document.on("blur", () => {
             save(editorInstance);
           });
@@ -169,35 +204,26 @@
         });
     });
 
-    function setupKontentAssetPicker(editor) {
-      const imageUploadCommand = editor.commands.get("imageUpload");
-      if (!imageUploadCommand) {
+    async function insertImageFromKontentAsset(editor) {
+      if (isElementDisabled) {
         return;
       }
 
-      imageUploadCommand.on("execute", async (eventInfo) => {
-        eventInfo.stop();
+      const selectedAssetUrl = await selectAndGetAsset();
+      if (!selectedAssetUrl) {
+        return;
+      }
 
-        if (isElementDisabled) {
-          return;
-        }
-
-        const selectedAssetUrl = await selectAndGetAsset();
-        if (!selectedAssetUrl) {
-          return;
-        }
-
-        try {
-          editor.execute("insertImage", { source: selectedAssetUrl });
-        } catch (error) {
-          editor.model.change((writer) => {
-            const imageElement = writer.createElement("imageBlock", {
-              src: selectedAssetUrl
-            });
-            editor.model.insertContent(imageElement, editor.model.document.selection);
+      try {
+        editor.execute("insertImage", { source: selectedAssetUrl });
+      } catch (error) {
+        editor.model.change((writer) => {
+          const imageElement = writer.createElement("imageBlock", {
+            src: selectedAssetUrl
           });
-        }
-      }, { priority: "high" });
+          editor.model.insertContent(imageElement, editor.model.document.selection);
+        });
+      }
     }
 
     function selectAndGetAsset() {
