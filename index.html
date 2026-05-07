@@ -145,8 +145,9 @@
             /* no active read-only lock */
           }
 
-          CustomElement.onDisabledChanged(readonly => {
-            isElementDisabled = !!readonly;
+          CustomElement.onDisabledChanged(disabled => {
+            const readonly = disabled === true || disabled === "true";
+            isElementDisabled = readonly;
             if (readonly) {
               editor.enableReadOnlyMode("custom-element-disabled");
             } else {
