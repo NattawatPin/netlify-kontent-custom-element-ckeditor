@@ -105,6 +105,9 @@
       "sourceEditing"
     ]);
 
+    /* Ensures toolbar always includes font controls even when Kontent config omits them. */
+    const FONT_TOOLBAR_GROUP = ["fontSize", "fontFamily", "fontColor", "fontBackgroundColor"];
+
     const LEGACY_TOOLBAR_GROUP_MAP = {
       document: ["undo", "redo", "sourceEditing"],
       clipboard: ["undo", "redo"],
@@ -114,8 +117,8 @@
       paragraph: ["bulletedList", "numberedList", "outdent", "indent"],
       links: ["link"],
       insert: ["imageUpload"],
-      styles: ["heading"],
-      colors: ["fontColor", "fontBackgroundColor"],
+      styles: ["heading", "fontSize", "fontFamily", "fontColor", "fontBackgroundColor"],
+      colors: ["fontColor", "fontBackgroundColor", "fontSize"],
       tools: ["sourceEditing"],
       others: [],
       about: []
@@ -161,6 +164,19 @@
         },
         image: {
           toolbar: ["imageTextAlternative", "imageStyle:inline", "imageStyle:block", "imageStyle:side"]
+        },
+        fontSize: {
+          options: ["tiny", "small", "default", "big", "huge"]
+        },
+        fontFamily: {
+          options: [
+            "default",
+            "Arial, Helvetica, sans-serif",
+            "Georgia, serif",
+            "Tahoma, Geneva, sans-serif",
+            "Times New Roman, Times, serif",
+            "Verdana, Geneva, sans-serif"
+          ]
         }
       };
 
@@ -283,7 +299,52 @@
           out.push(item);
         }
       });
-      return out.length ? out : DEFAULT_TOOLBAR;
+      const base = out.length ? out : DEFAULT_TOOLBAR;
+      return collapseToolbarSeparators(ensureFontToolbarGroup(base));
+    }
+
+    function ensureFontToolbarGroup(items) {
+      if (FONT_TOOLBAR_GROUP.every(name => items.includes(name))) {
+        return items;
+      }
+
+      const rest = items.filter(name => !FONT_TOOLBAR_GROUP.includes(name));
+      const afterUnderline = rest.lastIndexOf("underline");
+      const afterHeading = rest.lastIndexOf("heading");
+      const insertAt =
+        afterUnderline >= 0 ? afterUnderline + 1 : afterHeading >= 0 ? afterHeading + 1 : 0;
+
+      const head = rest.slice(0, insertAt);
+      const tail = rest.slice(insertAt);
+
+      const merged = [];
+      merged.push(...head);
+      if (head.length && FONT_TOOLBAR_GROUP.length) {
+        merged.push("|");
+      }
+      merged.push(...FONT_TOOLBAR_GROUP);
+      if (tail.length) {
+        merged.push("|");
+      }
+      merged.push(...tail);
+      return merged;
+    }
+
+    function collapseToolbarSeparators(items) {
+      const out = [];
+      items.forEach(item => {
+        if (item === "|" && out[out.length - 1] === "|") {
+          return;
+        }
+        out.push(item);
+      });
+      while (out[0] === "|") {
+        out.shift();
+      }
+      while (out[out.length - 1] === "|") {
+        out.pop();
+      }
+      return out;
     }
 
     /* Saves custom element value */
