@@ -8,131 +8,236 @@
   <link rel="stylesheet" href="custom-element.css" />
   <!-- Kentico Custom elements API-->
   <script src="https://app.kontent.ai/js-api/custom-element/v1/custom-element.min.js"></script>
-  <script src="https://cdn.ckeditor.com/4.22.1/full-all/ckeditor.js"></script>
+  <link rel="stylesheet" href="https://cdn.ckeditor.com/ckeditor5/47.1.0/ckeditor5.css" />
+  <script src="https://cdn.ckeditor.com/ckeditor5/47.1.0/ckeditor5.umd.js"></script>
 </head>
 
 <body>
   <!-- Custom element HTML -->
   <div id="editor" contenteditable="true"></div>
   <script>
-    CKEDITOR.disableAutoInline = true;
     AUTOSAVE_INTERVAL = 15000;
-    let item_url_macro = "domain.com/{codename}";
     let isElementDisabled = false;
+    let editorInstance = null;
 
-    CustomElement.init((element, context) => {
-      CKEDITOR.plugins.addExternal(
-        "kontentimage",
-        "/plugins/kontentimage/",
-        "plugin.js"
-      );
-      CKEDITOR.plugins.addExternal(
-        "kontentlink",
-        "/plugins/kontentlink/",
-        "plugin.js"
-      );
+    const {
+      ClassicEditor,
+      Essentials,
+      Paragraph,
+      Heading,
+      Bold,
+      Italic,
+      Underline,
+      Strikethrough,
+      RemoveFormat,
+      Link,
+      List,
+      BlockQuote,
+      Indent,
+      AutoLink,
+      HorizontalLine,
+      Code,
+      CodeBlock,
+      Table,
+      TableToolbar,
+      Alignment,
+      Font,
+      SourceEditing,
+      Image,
+      ImageToolbar,
+      ImageCaption,
+      ImageStyle,
+      ImageResize,
+      ImageUpload
+    } = CKEDITOR;
 
-      let config = {
-        skin: "moono-lisa",
-        customConfig: "/config.js",
-        extraPlugins: "autogrow,sourcedialog,kontentimage,kontentlink",
-        removePlugins: "sourcearea,resize,image,elementspath,link",
-        allowedContent: true,
-        autoGrow_minHeight: 100,
-        autoGrow_onStartup: true,
-        autoGrow_maxHeight: 450,
-        customJsImageBrowser: true, // use our custom asset selector as image browser
-        customJsImageMethod: selectAndGetAsset, // promise returning the images URL,
-        customJsLinkBrowser: true,
-        customJsLinkMethod: selectAndGetItem
+    const DEFAULT_TOOLBAR = [
+      "undo", "redo", "|", "heading", "|", "bold", "italic", "underline",
+      "strikethrough", "removeFormat", "|", "link", "bulletedList",
+      "numberedList", "outdent", "indent", "|", "alignment", "blockQuote",
+      "insertTable", "imageUpload", "horizontalLine", "|", "code", "codeBlock", "sourceEditing"
+    ];
+
+    const LEGACY_TOOLBAR_GROUP_MAP = {
+      document: ["undo", "redo", "sourceEditing"],
+      clipboard: ["undo", "redo"],
+      editing: ["undo", "redo"],
+      forms: [],
+      basicstyles: ["bold", "italic", "underline", "strikethrough", "removeFormat"],
+      paragraph: ["bulletedList", "numberedList", "outdent", "indent", "alignment", "blockQuote"],
+      links: ["link"],
+      insert: ["insertTable", "imageUpload", "horizontalLine"],
+      styles: ["heading"],
+      colors: ["fontColor", "fontBackgroundColor"],
+      tools: ["sourceEditing"],
+      others: [],
+      about: []
+    };
+
+    CustomElement.init((element) => {
+      const editorConfig = {
+        licenseKey: "GPL",
+        plugins: [
+          Essentials,
+          Paragraph,
+          Heading,
+          Bold,
+          Italic,
+          Underline,
+          Strikethrough,
+          RemoveFormat,
+          Link,
+          List,
+          BlockQuote,
+          Indent,
+          AutoLink,
+          HorizontalLine,
+          Code,
+          CodeBlock,
+          Table,
+          TableToolbar,
+          Alignment,
+          Font,
+          SourceEditing,
+          Image,
+          ImageToolbar,
+          ImageCaption,
+          ImageStyle,
+          ImageResize,
+          ImageUpload
+        ],
+        toolbar: normalizeToolbar(element && element.config && element.config.toolbar),
+        image: {
+          toolbar: ["imageTextAlternative", "imageStyle:inline", "imageStyle:block", "imageStyle:side"]
+        },
+        table: {
+          contentToolbar: ["tableColumn", "tableRow", "mergeTableCells"]
+        }
       };
 
-      /* load toolbar config from element settings if present */
-      if (element.config) {
-        let toolbar = element.config.toolbar;
-        if (toolbar) config.toolbarGroups = toolbar;
-        item_url_macro = element.config.itemUrlMacro; // load url macro for item hyperlinks
-      }
+      ClassicEditor.create(document.querySelector("#editor"), editorConfig)
+        .then(editor => {
+          editorInstance = editor;
 
-      let ckeditor = CKEDITOR.replace("editor", config);
+          CustomElement.onDisabledChanged(readonly => {
+            isElementDisabled = readonly;
+            if (readonly) {
+              editor.enableReadOnlyMode("custom-element-disabled");
+            } else {
+              editor.disableReadOnlyMode("custom-element-disabled");
+            }
+          });
 
-      /* what to do on autogrow */
-      ckeditor.on("resize", updateElementHeight);
+          editor.setData((element && element.value) || "");
+          updateElementHeight();
 
-      /* on editor load */
-      ckeditor.on("instanceReady", function () {
-        // reposition so there are no unnecessary toolbars
-        document.getElementById("cke_editor").style.margin = "-2px 0px 0px -2px";
+          editor.model.document.on("change:data", () => {
+            updateElementHeight();
+          });
 
-        // setup readonly on disable
-        CustomElement.onDisabledChanged(readonly => {
-          isElementDisabled = readonly;
-          ckeditor.setReadOnly(readonly);
+          setupKontentAssetPicker(editor);
+
+          editor.editing.view.document.on("blur", () => {
+            save(editorInstance);
+          });
+
+          setInterval(() => {
+            save(editorInstance);
+          }, AUTOSAVE_INTERVAL);
+        })
+        .catch(error => {
+          console.error("CKEditor 5 initialization failed:", error);
         });
-
-        // load data and view them in the editor
-        ckeditor.setData(element.value);
-
-        // resizes editor to initial height
-        updateElementHeight();
-      });
-
-      /* on editor blur */
-      ckeditor.on("blur", function () {
-        save(ckeditor);
-      });
-
-      /* periodic saving timer */
-      let saveTimer = setInterval(function () {
-        save(ckeditor);
-      }, AUTOSAVE_INTERVAL);
     });
 
-    /* Saves custom element value */
-    function save(ckeditor) {
-      if (isElementDisabled) return;
-      let data = ckeditor.getData();
-      // if the editor contains invisible tags save empty (so required flag is not triggered)
-      if (data.replace(/<[^>]*(>|$)|&nbsp;|&zwnj;|&raquo;|&laquo;|&gt;|\s/g, '') == "") data = null;
-      CustomElement.setValue(data);
+    function setupKontentAssetPicker(editor) {
+      const imageUploadCommand = editor.commands.get("imageUpload");
+      if (!imageUploadCommand) {
+        return;
+      }
+
+      imageUploadCommand.on("execute", async (eventInfo) => {
+        eventInfo.stop();
+
+        if (isElementDisabled) {
+          return;
+        }
+
+        const selectedAssetUrl = await selectAndGetAsset();
+        if (!selectedAssetUrl) {
+          return;
+        }
+
+        try {
+          editor.execute("insertImage", { source: selectedAssetUrl });
+        } catch (error) {
+          editor.model.change((writer) => {
+            const imageElement = writer.createElement("imageBlock", {
+              src: selectedAssetUrl
+            });
+            editor.model.insertContent(imageElement, editor.model.document.selection);
+          });
+        }
+      }, { priority: "high" });
     }
 
     /* Displays asset selector and returns URL of the selected asset */
     function selectAndGetAsset() {
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         CustomElement.selectAssets({
           allowMultiple: false,
           fileType: "images"
         }).then(results => {
-          if (results.length > 0) {
-            CustomElement.getAssetDetails(results.map(e => e.id)).then(
-              assets => {
-                if (assets[0]) resolve(assets[0].url);
-                resolve(null);
-              }
-            );
+          if (!results || results.length === 0) {
+            resolve(null);
+            return;
           }
-        });
+
+          CustomElement.getAssetDetails(results.map(e => e.id)).then(assets => {
+            if (assets && assets[0] && assets[0].url) {
+              resolve(assets[0].url);
+            } else {
+              resolve(null);
+            }
+          }).catch(() => resolve(null));
+        }).catch(() => resolve(null));
       });
     }
 
-    /* Displays content item selector and returns url of the selected content item */
-    function selectAndGetItem() {
-      return new Promise((resolve, reject) => {
-        CustomElement.selectItems({ allowMultiple: false }).then(results => {
-          if (results.length > 0) {
-            CustomElement.getItemDetails(results.map(e => e.id)).then(
-              items => {
-                if (items[0])
-                  resolve(
-                    item_url_macro.replace("{codename}", items[0].codename)
-                  );
-                resolve(null);
-              }
-            );
+    function normalizeToolbar(toolbarConfig) {
+      if (!Array.isArray(toolbarConfig) || toolbarConfig.length === 0) {
+        return DEFAULT_TOOLBAR;
+      }
+
+      if (typeof toolbarConfig[0] === "string") {
+        return toolbarConfig;
+      }
+
+      const normalized = [];
+      toolbarConfig.forEach(group => {
+        if (group === "/") {
+          normalized.push("|");
+          return;
+        }
+
+        const groupName = group && group.name;
+        const items = LEGACY_TOOLBAR_GROUP_MAP[groupName] || [];
+        items.forEach(item => {
+          if (!normalized.includes(item)) {
+            normalized.push(item);
           }
         });
       });
+
+      return normalized.length ? normalized : DEFAULT_TOOLBAR;
+    }
+
+    /* Saves custom element value */
+    function save(editor) {
+      if (!editor || isElementDisabled) return;
+      let data = editor.getData();
+      if (data.replace(/<[^>]*(>|$)|&nbsp;|&zwnj;|&raquo;|&laquo;|&gt;|\s/g, "") == "") data = null;
+      CustomElement.setValue(data);
     }
 
     /* Resizes custom element iframe based on document height. Won't pass MAX_HEIGHT. */
