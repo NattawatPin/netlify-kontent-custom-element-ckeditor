@@ -1,0 +1,4 @@
+# Never commit CKEditor commercial keys in Git. Set CKEDITOR_LICENSE_KEY in the Netlify UI.
+[build]
+  command = "bash scripts/netlify-build.sh"
+  publish = "."
