@@ -20,6 +20,7 @@
     let isElementDisabled = false;
     let editorInstance = null;
 
+    /* Minimal plugin set aligned with typical CK commercial bundles (avoids license-key-plugin-not-allowed). */
     const {
       ClassicEditor,
       Essentials,
@@ -28,50 +29,47 @@
       Bold,
       Italic,
       Underline,
-      Strikethrough,
-      RemoveFormat,
       Link,
       List,
-      BlockQuote,
       Indent,
-      AutoLink,
-      HorizontalLine,
-      Code,
-      CodeBlock,
-      Table,
-      TableToolbar,
-      Alignment,
       Font,
       FontFamily,
       FontSize,
       FontColor,
       FontBackgroundColor,
       GeneralHtmlSupport,
-      SourceEditing,
-      Image,
-      ImageToolbar,
-      ImageCaption,
-      ImageStyle,
-      ImageResize,
-      ImageUpload
+      SourceEditing
     } = CKEDITOR;
 
     const DEFAULT_TOOLBAR = [
-      "undo", "redo", "|", "heading", "|", "bold", "italic", "underline",
-      "strikethrough", "removeFormat", "|", "link", "bulletedList",
-      "numberedList", "outdent", "indent", "|", "alignment", "blockQuote",
-      "insertTable", "imageUpload", "horizontalLine", "|", "code", "codeBlock", "sourceEditing"
+      "undo", "redo", "|",
+      "heading", "|",
+      "bold", "italic", "underline", "|",
+      "fontSize", "fontFamily", "fontColor", "fontBackgroundColor", "|",
+      "bulletedList", "numberedList", "outdent", "indent", "|",
+      "link", "|",
+      "sourceEditing"
     ];
+
+    const ALLOWED_TOOLBAR_ITEMS = new Set([
+      "undo", "redo", "|",
+      "heading",
+      "bold", "italic", "underline",
+      "fontSize", "fontFamily", "fontColor", "fontBackgroundColor",
+      "bulletedList", "numberedList", "outdent", "indent",
+      "link",
+      "sourceEditing"
+    ]);
 
     const LEGACY_TOOLBAR_GROUP_MAP = {
       document: ["undo", "redo", "sourceEditing"],
       clipboard: ["undo", "redo"],
       editing: ["undo", "redo"],
       forms: [],
-      basicstyles: ["bold", "italic", "underline", "strikethrough", "removeFormat"],
-      paragraph: ["bulletedList", "numberedList", "outdent", "indent", "alignment", "blockQuote"],
+      basicstyles: ["bold", "italic", "underline"],
+      paragraph: ["bulletedList", "numberedList", "outdent", "indent"],
       links: ["link"],
-      insert: ["insertTable", "imageUpload", "horizontalLine"],
+      insert: [],
       styles: ["heading"],
       colors: ["fontColor", "fontBackgroundColor"],
       tools: ["sourceEditing"],
@@ -90,32 +88,16 @@
           Bold,
           Italic,
           Underline,
-          Strikethrough,
-          RemoveFormat,
           Link,
           List,
-          BlockQuote,
           Indent,
-          AutoLink,
-          HorizontalLine,
-          Code,
-          CodeBlock,
-          Table,
-          TableToolbar,
-          Alignment,
           Font,
           FontFamily,
           FontSize,
           FontColor,
           FontBackgroundColor,
           GeneralHtmlSupport,
-          SourceEditing,
-          Image,
-          ImageToolbar,
-          ImageCaption,
-          ImageStyle,
-          ImageResize,
-          ImageUpload
+          SourceEditing
         ],
         toolbar: normalizeToolbar(element && element.config && element.config.toolbar),
         htmlSupport: {
@@ -127,12 +109,6 @@
               styles: true
             }
           ]
-        },
-        image: {
-          toolbar: ["imageTextAlternative", "imageStyle:inline", "imageStyle:block", "imageStyle:side"]
-        },
-        table: {
-          contentToolbar: ["tableColumn", "tableRow", "mergeTableCells"]
         }
       };
 
@@ -163,8 +139,6 @@
             updateElementHeight();
           });
 
-          setupKontentAssetPicker(editor);
-
           editor.editing.view.document.on("blur", () => {
             save(editorInstance);
           });
@@ -178,67 +152,13 @@
         });
     });
 
-    function setupKontentAssetPicker(editor) {
-      const imageUploadCommand = editor.commands.get("imageUpload");
-      if (!imageUploadCommand) {
-        return;
-      }
-
-      imageUploadCommand.on("execute", async (eventInfo) => {
-        eventInfo.stop();
-
-        if (isElementDisabled) {
-          return;
-        }
-
-        const selectedAssetUrl = await selectAndGetAsset();
-        if (!selectedAssetUrl) {
-          return;
-        }
-
-        try {
-          editor.execute("insertImage", { source: selectedAssetUrl });
-        } catch (error) {
-          editor.model.change((writer) => {
-            const imageElement = writer.createElement("imageBlock", {
-              src: selectedAssetUrl
-            });
-            editor.model.insertContent(imageElement, editor.model.document.selection);
-          });
-        }
-      }, { priority: "high" });
-    }
-
-    /* Displays asset selector and returns URL of the selected asset */
-    function selectAndGetAsset() {
-      return new Promise((resolve) => {
-        CustomElement.selectAssets({
-          allowMultiple: false,
-          fileType: "images"
-        }).then(results => {
-          if (!results || results.length === 0) {
-            resolve(null);
-            return;
-          }
-
-          CustomElement.getAssetDetails(results.map(e => e.id)).then(assets => {
-            if (assets && assets[0] && assets[0].url) {
-              resolve(assets[0].url);
-            } else {
-              resolve(null);
-            }
-          }).catch(() => resolve(null));
-        }).catch(() => resolve(null));
-      });
-    }
-
     function normalizeToolbar(toolbarConfig) {
       if (!Array.isArray(toolbarConfig) || toolbarConfig.length === 0) {
         return DEFAULT_TOOLBAR;
       }
 
       if (typeof toolbarConfig[0] === "string") {
-        return toolbarConfig;
+        return filterToolbarItems(toolbarConfig);
       }
 
       const normalized = [];
@@ -257,7 +177,17 @@
         });
       });
 
-      return normalized.length ? normalized : DEFAULT_TOOLBAR;
+      return filterToolbarItems(normalized.length ? normalized : DEFAULT_TOOLBAR);
+    }
+
+    function filterToolbarItems(items) {
+      const out = [];
+      items.forEach(item => {
+        if (ALLOWED_TOOLBAR_ITEMS.has(item)) {
+          out.push(item);
+        }
+      });
+      return out.length ? out : DEFAULT_TOOLBAR;
     }
 
     /* Saves custom element value */
