@@ -14,7 +14,7 @@
 
 <body>
   <!-- Custom element HTML -->
-  <div id="editor" contenteditable="true"></div>
+  <div id="editor"></div>
   <script>
     AUTOSAVE_INTERVAL = 15000;
     let isElementDisabled = false;
@@ -43,6 +43,7 @@
       Alignment,
       Font,
       SourceEditing,
+      GeneralHtmlSupport,
       Image,
       ImageToolbar,
       ImageCaption,
@@ -99,6 +100,7 @@
           Alignment,
           Font,
           SourceEditing,
+          GeneralHtmlSupport,
           Image,
           ImageToolbar,
           ImageCaption,
@@ -107,6 +109,16 @@
           ImageUpload
         ],
         toolbar: normalizeToolbar(element && element.config && element.config.toolbar),
+        htmlSupport: {
+          allow: [
+            {
+              name: /.*/,
+              attributes: true,
+              classes: true,
+              styles: true
+            }
+          ]
+        },
         image: {
           toolbar: ["imageTextAlternative", "imageStyle:inline", "imageStyle:block", "imageStyle:side"]
         },
@@ -119,8 +131,14 @@
         .then(editor => {
           editorInstance = editor;
 
+          try {
+            editor.disableReadOnlyMode("custom-element-disabled");
+          } catch (e) {
+            /* no active read-only lock */
+          }
+
           CustomElement.onDisabledChanged(readonly => {
-            isElementDisabled = readonly;
+            isElementDisabled = !!readonly;
             if (readonly) {
               editor.enableReadOnlyMode("custom-element-disabled");
             } else {
