@@ -1,0 +1,14 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "agent": {
+    "code": {
+      "model": "foundry-claude/claude-sonnet-5"
+    },
+    "plan": {
+      "model": "foundry-claude/claude-opus-5"
+    },
+    "debug": {
+      "model": "foundry-claude/claude-sonnet-5"
+    }
+  }
+}
